@@ -1,41 +1,64 @@
 import { useState } from "react";
-import { Container, Row, Col, Form, Button } from "react-bootstrap";
+import {
+  Container,
+  Row,
+  Col,
+  Form,
+  Button,
+  Alert,
+  Spinner,
+} from "react-bootstrap";
 import { Link } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { fetchJobsAction } from "../redux/actions";
 import Job from "./Job";
 
 const MainSearch = () => {
   const [query, setQuery] = useState("");
-  const [jobs, setJobs] = useState([]);
+  const dispatch = useDispatch();
 
-  // Leggiamo il numero di preferiti dallo store
+  // ========================================
+  // Leggi dallo Redux Store
+  // ========================================
+  // Jobs: l'array dei lavori trovati
+  const jobs = useSelector((state) => state.jobs.list);
+
+  // isLoading: true quando la fetch è in corso
+  const isLoading = useSelector((state) => state.jobs.isLoading);
+
+  // error: messaggio di errore se la fetch fallisce
+  const error = useSelector((state) => state.jobs.error);
+
+  // Numero di preferiti per il badge
   const favouritesCount = useSelector(
     (state) => state.favourites.companies.length
   );
 
-  const baseEndpoint =
-    "https://strive-benchmark.herokuapp.com/api/jobs?search=";
-
+  // ========================================
+  // Event Handlers
+  // ========================================
   const handleChange = (e) => {
     setQuery(e.target.value);
   };
 
-  const handleSubmit = async (e) => {
+  /**
+   * handleSubmit: Quando l'utente fa submit della ricerca
+   * Ora usiamo dispatch(fetchJobsAction(query)) al posto della fetch manuale
+   */
+  const handleSubmit = (e) => {
     e.preventDefault();
 
-    try {
-      const response = await fetch(baseEndpoint + query + "&limit=20");
-      if (response.ok) {
-        const { data } = await response.json();
-        setJobs(data);
-      } else {
-        alert("Error fetching results");
-      }
-    } catch (error) {
-      console.log(error);
+    if (query.trim() === "") {
+      return; // Non fare nulla se la query è vuota
     }
+
+    // Dispatchio il thunk - Redux-Thunk si occuperà della fetch!
+    dispatch(fetchJobsAction(query));
   };
 
+  // ========================================
+  // JSX
+  // ========================================
   return (
     <Container>
       <Row>
@@ -49,20 +72,52 @@ const MainSearch = () => {
             </Link>
           </div>
         </Col>
+
         <Col xs={10} className="mx-auto">
           <Form onSubmit={handleSubmit}>
             <Form.Control
               type="search"
               value={query}
               onChange={handleChange}
-              placeholder="type and press Enter"
+              placeholder="Scrivi e premi Enter"
+              disabled={isLoading} // Disabilita input mentre carica
             />
           </Form>
         </Col>
+
         <Col xs={10} className="mx-auto mb-5">
-          {jobs.map((jobData) => (
-            <Job key={jobData._id} data={jobData} />
-          ))}
+          {/* ========== INDICATORE DI CARICAMENTO ========== */}
+          {isLoading && (
+            <div className="d-flex align-items-center gap-3 my-4">
+              <Spinner animation="border" variant="primary" />
+              <span>Caricamento...</span>
+            </div>
+          )}
+
+          {/* ========== INDICATORE DI ERRORE ========== */}
+          {error && !isLoading && (
+            <Alert variant="danger" className="my-4">
+              <strong>Errore:</strong> {error}
+            </Alert>
+          )}
+
+          {/* ========== LISTA DI JOBS ========== */}
+          {!isLoading && !error && jobs.length === 0 && (
+            <p className="text-muted my-4">
+              Nessun risultato trovato. Prova a cercare qualcos&apos;altro!
+            </p>
+          )}
+
+          {!isLoading && !error && jobs.length > 0 && (
+            <>
+              <p className="text-muted my-3">
+                Trovati <strong>{jobs.length}</strong> risultati
+              </p>
+              {jobs.map((jobData) => (
+                <Job key={jobData._id} data={jobData} />
+              ))}
+            </>
+          )}
         </Col>
       </Row>
     </Container>
